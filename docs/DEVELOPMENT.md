@@ -357,6 +357,113 @@ French, Spanish, Italian, menus and races in each, and the Windows build
 from an object file before the runtime's import library). Asked for in
 issue #2.
 
+## Frame rate (`src/frame_stats.cpp`)
+
+The SDK's F3 window shows "Guest: N FPS (M ms)" only when the program hands
+it a provider (`ReXApp::SetGuestFrameStats`); until 2026-10-09 ours did not,
+so F3 was an empty box for everyone (issue #7 found it). The game ends every
+frame in sub_82259A28, the only caller of VdSwap, which is now hooked to
+count frames. The F3 numbers are measured over half a second; the log gets
+`[fps] N frames per second over the last 30 s, slowest frame M ms` every
+30 seconds, so a bug report carries the player's real frame rate. On the
+Linux rig (software rendering) it reads 2 to 3 frames per second.
+
+## Music that loops (`src/xma_loop_fix.cpp`)
+
+The game streams its music (and some other sounds) as XMA in blocks through
+its own voice code (sub_822B02B8). For a block that repeats it calls
+`XMASetLoopData(context, &loop_data)` with a 12-byte `XMA_LOOP_DATA`
+(start and end as bit offsets, then count, subframe end, subframe skip).
+The SDK reads that pointer as a whole XMA context (SDK-NOTES section 11),
+so it took a loop count of 0 where the game asked for 255 ("for ever"), and
+the track stopped after its first pass (issue #17, the main menu music).
+`src/xma_loop_fix.cpp` defines `__imp__XMASetLoopData` in the game program
+and writes the right fields, each context word with one atomic update so
+the decoder's own changes made at the same moment are kept. The first four
+calls are logged with what the SDK would have read; on the Linux rig, the
+four calls on the way to a race all asked for 255 and the SDK would have
+read 0 for each. `rr6_xma_loop_fix = false` gives the old behaviour back.
+Not yet heard on Windows (the rig's audio output is silent).
+
+## Windows timer (`src/timer_resolution.cpp`)
+
+The SDK paces the guest with `Sleep(1)` polling: the vertical blank thread
+(`graphics_system.cpp`) wakes every millisecond and marks the 60 Hz ticks
+that have passed. On Windows 10 2004 and later a program that has not asked
+for a finer timer sleeps at least 15.6 ms however short a sleep it asks
+for, and the SDK does not ask (Xenia, which it comes from, does). The 60 Hz ticks
+then arrive in uneven steps. The game program now calls `timeBeginPeriod(1)`
+when it starts (`rr6_fine_timer`, default on) and logs how long a 1 ms
+sleep took before and after: `[timer] a 1 ms sleep took 15.6 ms; asked for a
+1 ms timer (granted), now 1.0 ms`. Whether this is what slows the game on
+some PCs (issue #7) is not known; the log line will tell from the next
+reports.
+
+## Slow PCs: what the log now says (issue #7)
+
+Two testers get 20-50 frames per second with the graphics card mostly idle
+(steven44: i7-6700K, RTX 2060, processor about half used at full clock, GPU
+29%; his latest log has about 90 s near 31 fps and then a steady 60 for seven
+minutes). Sunspot77x has a laptop with a Radeon 780M built into the
+processor and an RTX 4060, and lower settings barely help.
+
+- `src/thread_stats.cpp`: every 30 s, `[threads] busiest over 30 s: ...`
+  lists the six busiest threads of the process with their processor time as a
+  percentage of one core (Windows: Toolhelp, `GetThreadTimes`,
+  `GetThreadDescription`; Linux: `/proc/self/task`). The game's own threads
+  are `XThreadNNNN` / `Main XThread`; the SDK's are named ("GPU Commands",
+  "Audio Worker", "XMA Decoder", ...). A thread near 100% is the bottleneck.
+  `rr6_thread_stats`, default on. On the Linux rig at the start: the game's
+  threads 54% and 37%, the audio worker 33%, llvmpipe the rest.
+- `src/gpu_choice.cpp`: the SDK's Direct3D 12 backend takes the first
+  adapter that can run Direct3D 12 (`d3d12_adapter = -1`), on hybrid laptops
+  usually the integrated one. In `OnPreSetup`, before the backend starts, the
+  game program lists the adapters in the same order, asks
+  `IDXGIFactory6::EnumAdapterByGpuPreference(HIGH_PERFORMANCE)` (fallback:
+  most video memory) and sets `d3d12_adapter` to it when that is not the
+  first. A hand-set value is kept unless it no longer names a usable adapter
+  (the SDK would otherwise fail to start). F4's "Save to config" may store the
+  chosen index; that is harmless for the same reason. `rr6_prefer_fast_gpu`.
+
+On Linux the audio worker's 33% comes from the SDK's POSIX `WaitMultiple`,
+which polls every millisecond instead of blocking; on Windows it uses
+`WaitForMultipleObjects` and does not. Worth fixing in the fork for the
+Steam Deck, not for the Windows reports.
+
+## Sync to the display (issue #16)
+
+The Direct3D 12 presenter shows each frame at once, without waiting for the
+display (`Present(0, RESTART | ALLOW_TEARING)`), which tears. Forcing vsync
+in the graphics driver makes the game's 60 Hz timer and the display's
+refresh drift against each other, which shows as stutter (the two reports
+in #16 had identical settings files, so the vsync came from the driver). Our SDK fork (PR #2 there,
+`vsync_to_display`) presents with sync interval 1 and lets the guest's
+vertical blank follow the display's (`IDXGIOutput::WaitForVBlank`) when the
+display runs at a whole multiple of 60 Hz; other displays keep the timer.
+On Vulkan it only selects FIFO presentation. The launcher's Display page has
+"Sync to my screen", enabled only when `bin\rexruntime.dll` contains the
+setting's name (fork v0.10.0.101 and later). The log says whether the
+display or the timer drives the guest.
+
+## Launcher settings and the F4 window
+
+The SDK's F4 window writes `rr6_recomp.toml` only when its **Save to config**
+button is pressed, and then writes every setting that differs from its
+default. Up to launcher 1.4's first version, the launcher wrote all of its
+settings at every Save or Play from what it had read when it started, and
+recalculated the render size from its own Sharpness choice; a render size
+set in F4 was therefore undone at the next start (issue #15). Now
+`SaveAll` reads the file again, applies only the launcher settings whose
+value differs from what the controls stood for when they were loaded (or
+that the file lacks), keeps everything else, and reloads the controls from
+the result. `LoadIntoControls` takes the Sharpness choice from
+`draw_resolution_scale_y` in the file when that differs from the launcher's
+own note. "Restore default settings" still writes the launcher's settings
+afresh. Checked under Wine: a render size of 3 set outside the launcher
+stays and shows as "3x"; `vsync` and `anisotropic_override` changed in the
+file while the launcher was open survive Save; a language chosen in the
+launcher is written.
+
 ## Display settings
 
 The game stays at its native 60 fps (its speed is tied to the display tick).
@@ -382,6 +489,17 @@ CAS/FSR sharpening (`present_effect` only accepts `bilinear`).
   own. Menus are not sprite groups and stay in the central 16:9 area, which
   is what fixed the uneven letter spacing of the previous revision.
 - `rr6_hud_stats = true` logs what the edge layout did every five seconds.
+
+- Rear-view mirror (`rr6_viewport_fix`, issue #12): the mirror is a second
+  3D view set with D3DDevice_SetViewport (sub_82257488) inside a 2D frame.
+  The frame was narrowed with the rest of the 2D layer, the viewport was not,
+  so the mirror's picture was wider than its frame by the stretch factor.
+  Every viewport covering only part of the 1280x720 frame is now narrowed
+  around the centre by the same factor (a narrowed copy of the caller's
+  D3DVIEWPORT9 goes on the guest stack). Full-width viewports (the race,
+  split screen) and other surfaces are left alone. `rr6_viewport_log = true`
+  logs each new viewport. Not yet seen in a race: the rig is too slow to
+  drive to cockpit view (1 frame per second at 21:9).
 
 Known cosmetic limits in ultrawide: full-screen pictures are stretched (the
 intro/attract videos and the Pac-Man loading screen); menu tickers, the
