@@ -13,6 +13,38 @@ repository are not flagged. Details and how to check the file:
 
 ## Not released yet
 
+- Music loops again: tracks that repeat, such as the main menu's, stopped
+  after their first pass (issue #17). The game tells the console's audio
+  decoder where a loop starts and ends, and the SDK read that information
+  from the wrong place, so it saw "play once" where the game said "repeat".
+  The game program now passes it on correctly.
+- Ultrawide: the rear-view mirror's picture fits its frame (issue #12). The
+  mirror is a small 3D view inside the picture; it is now narrowed like the
+  HUD around it.
+- Windows: the game asks Windows for a 1 ms timer when it starts. Without
+  it, the short waits that pace the game last 15.6 ms on current Windows, so
+  the 60 Hz tick arrived in uneven steps. The log notes how long a short
+  wait took before and after (issue #7).
+- Launcher 1.5: "Sync to my screen" on the Display page, for a picture
+  without tearing (issue #16). It needs the runtime from our SDK fork's
+  v0.10.0.101, which also lets the game's 60 Hz clock follow a 60 or 120 Hz
+  screen so frames are not repeated or dropped; with an older runtime the
+  box is greyed out.
+- Laptops with two graphics chips (one built into the processor, plus a
+  graphics card) now use the graphics card. The game took whichever one
+  Windows listed first, usually the slower built-in one. The log names the
+  adapters and which one is used. `rr6_prefer_fast_gpu = false` turns this
+  off; a `d3d12_adapter` set by hand is kept.
+- The log gets a line every 30 seconds with the busiest threads and how much
+  of a processor core each used, so a report from a slow PC shows what holds
+  the game back (issue #7).
+
+## v0.1.5 and Linux test build 06 (2026-10-09)
+
+Inside the Windows zip it calls itself "test build 09". The Linux release has
+the desktop archive only for now; the Steam Deck package of build 06 follows
+once it has been tried on a Deck.
+
 - Language: the game can now be played in any of the disc's six languages
   (English, Japanese, German, French, Spanish, Italian): the launcher's
   Language setting on the Display tab, or `--language` on Linux. Until now the
@@ -28,10 +60,26 @@ repository are not flagged. Details and how to check the file:
 - Copying the game from the disc image refuses a damaged image instead of
   copying the part that could be read, and an interrupted copy made with
   "Play without the launcher" is no longer taken for a finished one.
-- The launcher (version 1.4) keeps settings it does not change exactly as they
-  were.
+- The launcher (version 1.4) keeps settings changed elsewhere. It used to
+  write all of its settings again at every Save or Play, from what it had read
+  when it started, so a render size chosen in the game's F4 window was undone
+  at the next start (issue #15). It now reads the file again first and writes
+  only what was changed in the launcher; the Sharpness choice follows the
+  render size in the file. Lines it does not look after are kept exactly.
+- F3 shows the frame rate. The F3 window was an empty box: the game program
+  never gave it the numbers. The log also gets a line every 30 seconds with
+  the frame rate and the slowest frame, so bug reports show how fast the game
+  ran.
 - Linux: `--install-dlc` is no longer lost when the script reopens itself in a
   terminal on the first start.
+- Checked on Windows before release: German and Japanese in the menus (in
+  Japanese the menu titles and course names stay in English, as the game's own
+  Japanese text has them), the frame rate in F3 during a race (60), and five
+  music tracks added through the DLC folder and listed under Change BGM. On
+  Linux, with software rendering only: German and Japanese, the DLC folder
+  with stand-in packages, and the `[fps]` log lines.
+- The runtime files are the same as in v0.1.3 and v0.1.4 (our fork of the
+  SDK, v0.10.0.100).
 
 ## v0.1.4 and Linux test build 05 (2026-10-07)
 

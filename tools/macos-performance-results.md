@@ -104,19 +104,21 @@ replacement was justified by these captures.
 
 ## Build and verification
 
-The SDK changes are already applied to the local sibling `../rexglue-sdk`.
-They are committed as `dda8276` on `perf/vulkan-frame-pacing` in
-[the companion SDK draft](https://github.com/abradburne/rexglue-sdk/pull/1).
-For a clean SDK checkout, the portable patch is
-[macos-performance-sdk.patch](../patches/macos-performance-sdk.patch), based on
-SDK commit `1cc9612418852f849181b64bf97ddc14f34250ee`. The game changes are based
-on `24d61717c2922a687be0dd1f1cc13e694e81aa83`. Do not reapply the patch to the
-already modified local SDK. On a clean compatible checkout:
+The runtime changes are proposed in
+[shared SDK PR #5](https://github.com/Sirhalo23/rexglue-sdk/pull/5), following
+[SDK PR #1](https://github.com/Sirhalo23/rexglue-sdk/pull/1). The measurements
+below used SDK commit `dda8276` and game changes based on `24d6171`. The review
+branch also incorporates current upstream game `main` (`53e3d3d`), retaining
+its music-loop, Windows GPU-selection and thread-diagnostic fixes.
+
+Use the companion SDK PR while it is pending, then rebuild the game, runtime
+and GPU plugin together because their shared graphics interface changes:
 
 ```sh
-git -C ../rexglue-sdk apply --check "$PWD/patches/macos-performance-sdk.patch"
-git -C ../rexglue-sdk apply "$PWD/patches/macos-performance-sdk.patch"
-cmake --build --preset mac-arm64-release --target rr6_recomp --parallel 8
+git -C ../rexglue-sdk fetch origin pull/5/head
+git -C ../rexglue-sdk checkout FETCH_HEAD
+git -C ../rexglue-sdk submodule update --init --recursive
+./build-macos.sh
 ```
 
 Validation: native Release build; timer regression tests (4 cases / 10
@@ -134,9 +136,10 @@ and capture filenames for each build and mode.
 
 Selectively adapted the idle-popup change from game commit `32fd28e` on
 `origin/perf-popup-waits`, adding reattachment for silent unlocks to preserve
-launcher exports. The F3 provider comes from game commit `57021e9`.
-The Windows GPU-selection/timer diagnostics in `perf-diagnostics` do not
-improve this macOS path and were not imported.
+launcher exports. The F3 provider from game commit `57021e9` has since landed
+in upstream main; this PR retains clarifications that it measures guest frame
+production. Current main's Windows GPU-selection/timer diagnostics are also
+retained, though they do not improve the macOS path.
 
 A read-only remote check on 11 October confirmed that the maintainer SDK's
 `rr6` branch still points to `e4a7f75`, already included in the local SDK base
