@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Assemble only approved release files, audit linkage, sign and zip the app."""
 from pathlib import Path
+import os
 import plistlib
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+
+from make_icon import make_icon
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,6 +59,14 @@ def package(build, sdk, arch, output):
         (resources / "sounds").mkdir()
         shutil.copy2(ROOT / "assets/achievement.wav", resources / "sounds/achievement.wav")
 
+        # Local personalization only: distribution packages need no disc artwork.
+        # Generate inside staging so no extracted PNG or ICNS enters the repo.
+        icon_xex = os.environ.get("RR6_ICON_XEX")
+        if icon_xex:
+            platform = "mac-arm64" if arch == "arm64" else "mac-amd64"
+            rexglue = Path(os.environ.get("RR6_ICON_REXGLUE", sdk / "out" / platform / "rexglue"))
+            make_icon(Path(icon_xex), rexglue, resources / "RR6.icns", arch)
+
         # Respect the deployment target of the existing build, rather than
         # claiming support for an older macOS than its dependencies require.
         versions = []
@@ -101,7 +112,7 @@ def package(build, sdk, arch, output):
             run("strip", "-S", "-x", path)
 
         with (contents / "Info.plist").open("wb") as stream:
-            plistlib.dump({
+            info = {
                 "CFBundleExecutable": "rr6-launcher",
                 "CFBundleIdentifier": "org.rr6recomp.game",
                 "CFBundleName": "Ridge Racer 6",
@@ -111,7 +122,10 @@ def package(build, sdk, arch, output):
                 "CFBundleShortVersionString": "0.1",
                 "LSMinimumSystemVersion": minimum,
                 "NSHighResolutionCapable": True,
-            }, stream)
+            }
+            if icon_xex:
+                info["CFBundleIconFile"] = "RR6.icns"
+            plistlib.dump(info, stream)
         licenses = resources / "licenses"
         shutil.copytree(ROOT / "package/licenses", licenses)
         for base in [sdk, *sorted((sdk / "thirdparty").iterdir())]:

@@ -71,6 +71,22 @@ puts the linker map next to the zip; with it, a crash address from a bug
 report can be turned into a function name
 (`python tools\map_lookup.py <map file> <offset>`).
 
+For a personalized local Windows package, extract the app badge from your
+own USA disc instead of using the launcher's bundled original icon:
+
+```powershell
+$env:RR6_ICON_XEX = (Resolve-Path ..\game\default.xex).Path
+.\make-tester-package.bat
+```
+
+Python 3 and the SDK's `bin/rexglue.exe` are needed only during packaging.
+`RR6_ICON_REXGLUE` selects another SDK tool location. The packager embeds
+the generated multi-size ICO into its staged launcher and game EXEs and
+records hashes of those personalized files. It leaves the build EXEs alone.
+Embed before any separate Authenticode signing step. Generated artwork stays
+in the local package, with no new image assets committed to the repository.
+Without `RR6_ICON_XEX`, the normal artwork-free distribution is unchanged.
+
 ## Where things are
 
     rr6_recomp_manifest.toml   what the recompiler has to be told about this game
@@ -108,6 +124,20 @@ in `../dist`: the game binary, the SDK's two runtime libraries, the disc-image
 tool, the start script `linux/ridge-racer-6.sh`, a README and the licences.
 Next to them it puts the game binary with its symbols, which stays private
 like the Windows linker map.
+
+The equivalent local Linux/Steam Deck icon option is:
+
+```sh
+RR6_ICON_XEX="$PWD/../game/default.xex" linux/make-package.sh 01 "$PWD/out/local-linux-package"
+```
+
+The SDK's `bin/rexglue` extracts the badge; `RR6_ICON_REXGLUE` can override
+its location. Python 3 generates a PNG without third-party image libraries.
+Each personalized archive includes `icons/rr6.png`. After unpacking into its
+final folder, run `python3 tools/install-desktop.py` from there to add a
+desktop-menu shortcut using that icon. Run it again if the folder moves.
+The same PNG can be chosen as a custom icon for a non-Steam entry in Steam.
+Ordinary packages include no disc-derived icon or shortcut installer.
 
 A binary built this way needs, on the machine that runs it, at least the glibc
 and C++ library versions of the SDK's own libraries (glibc 2.35, GCC 13.2) or
@@ -225,6 +255,18 @@ For repeatable CPU frame-time captures and separate cold/warm application
 cache comparisons, see [the macOS performance measurement guide](tools/performance.md).
 Its optional Release CSV measures guest-swap pacing and CPU swap work;
 Metal System Trace provides separate native GPU evidence.
+
+For a local app icon made from your own disc artwork, use the `default.xex`
+already extracted by `build-macos.sh`. The SDK extracts its original title
+badge, then packaging renders a rounded macOS tile and all ICNS sizes:
+
+    RR6_ICON_XEX="$PWD/../game/default.xex" macos/make-package.sh "$PWD/out/local-package"
+
+Only rendering/extraction source is kept in git. The PNGs are temporary and
+the generated ICNS is placed inside the packaged app in ignored build output.
+Without `RR6_ICON_XEX`, packaging includes no disc-derived icon. The original
+badge is 64×64; larger icon sizes preserve that artwork rather than adding
+invented detail. `RR6_ICON_REXGLUE` can select a different SDK tool executable.
 
 `vsync = true` controls guest vblank timing; it does not force the Vulkan
 presenter's display mode. For optional strict display VSync, add all three
