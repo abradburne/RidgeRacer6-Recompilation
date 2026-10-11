@@ -155,15 +155,16 @@ To match the feedback-review build while that PR is pending:
     git -C ../rexglue-sdk submodule update --init --recursive
 
 The performance build additionally uses
-[the companion SDK draft](https://github.com/abradburne/rexglue-sdk/pull/1),
+[shared SDK PR #5](https://github.com/Sirhalo23/rexglue-sdk/pull/5),
 which adds presenter pipeline reuse, persistent driver caches, shutdown
 flushing and idle timer waits. To build the full performance changes:
 
-    git -C ../rexglue-sdk fetch https://github.com/abradburne/rexglue-sdk.git perf/vulkan-frame-pacing
-    git -C ../rexglue-sdk checkout dda8276
+    git -C ../rexglue-sdk fetch origin pull/5/head
+    git -C ../rexglue-sdk checkout FETCH_HEAD
     git -C ../rexglue-sdk submodule update --init --recursive
 
-The portable patch and its clean-checkout instructions are included in
+Rebuild the runtime and GPU plugin together: this SDK change extends their
+shared graphics interface. Measured results and validation limits are in
 [the performance findings](tools/macos-performance-results.md).
 
 The SDK builds and stages its Vulkan loader and MoltenVK. From this checkout:
