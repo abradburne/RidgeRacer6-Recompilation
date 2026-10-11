@@ -1,2 +1,6 @@
+* text=auto
+*.bat text eol=crlf
+*.sh text eol=lf
+*.ico binary
 # Unified patch context uses a single space for empty source lines.
 patches/*.patch -whitespace
