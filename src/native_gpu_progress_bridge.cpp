@@ -2,14 +2,13 @@
 #include <algorithm>
 #include <bit>
 #include <chrono>
-#include <cstring>
 #include <recomp/native/wait_set.h>
 #include <vector>
 namespace rr6 {
 namespace {
 uint32_t RawRead(const uint8_t *p) {
   uint32_t v;
-  std::memcpy(&v, p, 4);
+  std::copy_n(p, sizeof(v), reinterpret_cast<uint8_t *>(&v));
   if constexpr (std::endian::native == std::endian::little)
     v = __builtin_bswap32(v);
   return v;
@@ -72,7 +71,7 @@ void GpuProgressStore32(uint8_t *base, uint32_t address, uint32_t value) {
   GpuProgressWrite write(host, 4, ProgressWriter::Cpu);
   if constexpr (std::endian::native == std::endian::little)
     value = __builtin_bswap32(value);
-  std::memcpy(host, &value, 4);
+  std::copy_n(reinterpret_cast<const uint8_t *>(&value), sizeof(value), host);
 }
 void GpuProgressStore8(uint8_t *base, uint32_t address, uint8_t value) {
   auto *host = GpuProgressHost(base, address);
